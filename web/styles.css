@@ -12,7 +12,7 @@
   --blue-dot: #4b8df8;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg-main);
@@ -23,7 +23,7 @@ body {
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-.app { display: flex; height: 100vh; }
+.app { display: flex; height: 100vh; height: 100dvh; }
 
 /* Sidebar */
 .sidebar {
@@ -102,15 +102,14 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   display: flex; align-items: center; gap: 10px;
   background: #1f1f1f; padding: 7px 16px 7px 10px; border-radius: 999px; font-size: 17px;
 }
-.share-btn {
+.screen-btn {
   position: absolute; right: 16px;
   background: #1f1f1f; padding: 9px 18px; border-radius: 999px; font-size: 16px;
 }
-.share-btn:hover, .bot-pill:hover { background: #292929; }
+.screen-btn:hover, .bot-pill:hover { background: #292929; }
 
 /* A Bot's live screen, beside the chat */
-.share-btn.screen-btn { right: 108px; }
-.app:has(.screen:not([hidden])) .share-btn { display: none; } /* the panel has its own close button */
+.app:has(.screen:not([hidden])) .screen-btn { display: none; } /* the panel has its own close button */
 .screen { width: 46%; min-width: 420px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: #111; }
 .screen[hidden] { display: none; }
 .screen-bar { height: 72px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; }
@@ -193,10 +192,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   font: inherit; font-size: 17px;
 }
 .composer input::placeholder { color: var(--text-faint); }
-.composer-plus { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #aaa; background: #262626; }
-.composer-mic { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #aaa; background: #262626; }
 .composer-voice { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); color: #fff; }
-.composer-plus:hover, .composer-mic:hover { color: #fff; }
 
 /* Branding: one faint line under the composer */
 .footnote { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font-size: 12.5px; color: #5c5c5c; }
@@ -307,3 +303,135 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .switch span { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
 .switch.on { background: var(--blue); }
 .switch.on span { transform: translateX(16px); }
+
+/* ---- Phones and small tablets ------------------------------------------
+   Desktop keeps the three-column shell. Below 1100px the details and screen
+   panels cover the app instead of squeezing the chat; below 720px the Bots
+   list and the chat are two views, one at a time, and the composer sits above
+   the on-screen keyboard. --kb is the keyboard height, set from JS. */
+
+.back-btn { display: none; }
+
+@media (max-width: 1099px) {
+  .details { position: fixed; inset: 0; width: 100%; z-index: 30; padding: 18px 18px calc(24px + env(safe-area-inset-bottom)); }
+  .details .d-close { width: 44px; height: 44px; top: 12px; right: 12px; }
+  .screen { position: fixed; inset: 0; width: 100%; min-width: 0; z-index: 40; }
+  .screen-view { margin: 0 10px calc(10px + env(safe-area-inset-bottom)); }
+
+  /* The sidebar leaves too little for 80px gutters, and an <input> refuses to
+     shrink below its intrinsic width unless told to. */
+  .messages { padding-left: 20px; padding-right: 20px; }
+  .composer, .model-bar { left: 20px; right: 20px; }
+  .composer input { min-width: 0; }
+  .composer-voice { width: 44px; height: 44px; }
+}
+
+@media (max-width: 719px), (pointer: coarse) and (max-height: 480px) {
+  body { overscroll-behavior: none; }
+
+  /* One view at a time: the Bots list, or the chat. */
+  body[data-view="chat"] .sidebar,
+  body[data-view="bots"] .chat { display: none; }
+  body[data-view="chat"] .chat { animation: chat-in .18s ease-out; }
+  @keyframes chat-in { from { transform: translateX(16px); opacity: .5; } }
+
+  .sidebar {
+    width: 100%;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .chat { width: 100%; min-width: 0; }
+
+  /* Hit areas stay ≥44px; only the glyphs are small. */
+  .sidebar .icon-btn { width: 44px; height: 44px; }
+  .hidden-bots { min-height: 44px; }
+  .bot-row { padding-top: 10px; padding-bottom: 10px; }
+  .me { min-height: 44px; }
+
+  /* Header: back, Bot, Screen. Attach and Share are gone on a phone. */
+  .chat-header {
+    height: auto; min-height: 56px; justify-content: flex-start; gap: 6px;
+    padding: max(6px, env(safe-area-inset-top)) 10px 6px;
+  }
+  .back-btn { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; }
+  .bot-pill { flex: 1; min-width: 0; padding: 6px 12px 6px 8px; }
+  .bot-pill > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bot-pill .harness { display: none; }
+  .screen-btn { display: grid; place-items: center; position: static; width: auto; height: 44px; padding: 0 14px; }
+
+  /* Messages clear the composer, the model bar and the keyboard. */
+  .messages { padding: 12px 14px calc(150px + var(--kb, 0px) + env(safe-area-inset-bottom)) 14px; overscroll-behavior-y: contain; }
+  .msg-row, .timestamp { max-width: 100%; }
+  .bubble { padding: 9px 13px; }
+  .bubble pre { font-size: 13.5px; }
+  .actions { opacity: .5; }
+  .msg-row:active .actions, .actions:active { opacity: 1; }
+  .actions button { width: 44px; height: 44px; }
+  .question { padding: 14px 16px 8px; }
+  .question .option { padding: 10px 12px; }
+  .question .open-screen { padding: 10px 16px; }
+  .typing .stop { padding: 4px 12px; }
+
+  .scroll-down { bottom: calc(160px + var(--kb, 0px) + env(safe-area-inset-bottom)); width: 42px; height: 42px; }
+
+  /* Composer: full width, above the keyboard and the home indicator. */
+  .composer {
+    left: 10px; right: 10px;
+    bottom: calc(10px + var(--kb, 0px) + env(safe-area-inset-bottom));
+    border-radius: 24px; padding: 6px 6px 6px 14px;
+  }
+  .composer input { font-size: 17px; min-height: 44px; }
+  .composer-voice { width: 48px; height: 48px; }
+  .footnote { display: none; }
+
+  .model-bar {
+    left: 10px; right: 10px;
+    bottom: calc(84px + var(--kb, 0px) + env(safe-area-inset-bottom));
+    padding: 2px 6px; border-radius: 12px;
+    background: var(--bg-main); border: 1px solid var(--border);
+  }
+  .model-bar select { max-width: 46vw; font-size: 14px; min-height: 44px; }
+
+  /* Panels: full screen, with their own scroll. */
+  .details { padding: max(10px, env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom)); }
+  .details .d-hero { padding-top: 24px; }
+  .d-tabs button { padding: 10px 18px; min-height: 44px; }
+  .d-item { padding: 13px 16px; }
+  .details select { min-height: 44px; }
+  .details .switch::after { content: ""; position: absolute; inset: -10px; } /* 24px switch, 44px target */
+  .screen-bar { height: auto; min-height: 52px; padding: max(6px, env(safe-area-inset-top)) 10px 6px; }
+  .screen-take { padding: 10px 16px; min-height: 44px; }
+  .screen .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; }
+
+  /* New Bot: a full-screen sheet instead of a floating dialog. */
+  .modal-backdrop { align-items: stretch; padding: 0; }
+  .modal { width: 100%; max-width: none; height: 100%; max-height: none; border: 0; border-radius: 0; display: flex; flex-direction: column; }
+  .modal-head { padding: max(14px, env(safe-area-inset-top)) 14px 14px; }
+  .modal-body { flex: 1; overflow-y: auto; padding: 14px 18px calc(20px + env(safe-area-inset-bottom)); }
+  .nb-preview { height: 104px; margin: 0 0 18px; }
+  .nb-input { height: 48px; margin-bottom: 22px; }
+  .nb-shapes { width: 100%; gap: 12px 16px; margin-bottom: 24px; }
+  .nb-shape { width: 52px; height: 52px; }
+  .nb-colors { width: 100%; gap: 16px; }
+  .nb-color { width: 38px; height: 38px; }
+  .modal-foot { flex-wrap: wrap; gap: 10px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
+  .nb-runs { width: 100%; margin-right: 0; }
+  .nb-btn { flex: 1; padding: 12px 18px; }
+}
+
+/* Tablets and touch laptops: same hit areas as phones, without the phone shell. */
+@media (max-width: 1099px) {
+  .composer input, .model-bar select, .details select { min-height: 44px; }
+}
+
+/* No hover: message actions must be visible and big enough to hit. */
+@media (hover: none) {
+  .actions { opacity: .6; }
+  .actions button { width: 44px; height: 44px; }
+  .icon-btn, .modal-close { width: 44px; height: 44px; }
+  .bot-row, .hidden-bots, .d-item { min-height: 44px; }
+  .screen-btn, .d-tabs button, .screen-take { min-height: 44px; }
+  /* The pill stays 24px tall; its hit area does not. */
+  .switch { position: relative; }
+  .switch::after { content: ""; position: absolute; inset: -10px; }
+}
