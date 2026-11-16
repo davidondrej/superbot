@@ -70,6 +70,7 @@ impl Adapter for Omp {
                         }
                         "toolCall" => {
                             // `intent` is the model's one-line reason; fall back to the arguments.
+                            // It often starts with the same verb tool_label adds, so drop that once.
                             let detail = match str_of(c, "intent") {
                                 "" => describe(&c["arguments"]),
                                 i => short(strip_verb(i)),
@@ -125,16 +126,35 @@ impl Adapter for Omp {
     }
 }
 
-/// `intent` usually repeats the verb the status line adds ("Running: …", "Ran …").
-/// Strip one of those, but only when it really is a verb: "Random x" starts with
-/// "Ran" and must survive.
+/// Verbs the status line already supplies. omp's intent opens with one of these
+/// ("Running uname", "Reading first three lines", "Writing ok.txt"), so drop it once
+/// and only when a colon or space follows — "Random x" must survive.
+const VERBS: [&str; 15] = [
+    "Reading",
+    "Running",
+    "Writing",
+    "Editing",
+    "Searching",
+    "Browsing",
+    "Listing",
+    "Fetching",
+    "Creating",
+    "Updating",
+    "Deleting",
+    "Read",
+    "Ran",
+    "Wrote",
+    "Edited",
+];
+
 fn strip_verb(s: &str) -> &str {
     let s = s.trim();
-    for verb in ["Running", "Ran"] {
-        if let Some(rest) = s.strip_prefix(verb) {
-            if rest.starts_with([':', ' ']) {
-                return rest.trim_start_matches([':', ' ']);
-            }
+    for verb in VERBS {
+        let Some(rest) = s.strip_prefix(verb) else {
+            continue;
+        };
+        if rest.starts_with(|c: char| c == ':' || c.is_whitespace()) {
+            return rest.trim_start_matches(|c: char| c == ':' || c.is_whitespace());
         }
     }
     s
@@ -150,11 +170,22 @@ mod tests {
         assert_eq!(strip_verb("Running echo hi"), "echo hi");
         assert_eq!(strip_verb("Ran: ls"), "ls");
         assert_eq!(strip_verb("Ran ls"), "ls");
+        // The forms omp actually emitted while writing this: one verb per tool kind.
+        assert_eq!(
+            strip_verb("Running uname and listing largest /tmp entries"),
+            "uname and listing largest /tmp entries"
+        );
+        assert_eq!(strip_verb("Reading first three lines"), "first three lines");
+        assert_eq!(strip_verb("Writing ok.txt"), "ok.txt");
+        assert_eq!(strip_verb("Read: /tmp/x"), "/tmp/x");
+        assert_eq!(strip_verb("Running\tls"), "ls");
     }
 
     #[test]
     fn leaves_words_that_only_look_like_verbs() {
         assert_eq!(strip_verb("Random sample"), "Random sample");
+        assert_eq!(strip_verb("Readinglist.txt"), "Readinglist.txt");
+        assert_eq!(strip_verb("Inside /tmp"), "Inside /tmp");
         assert_eq!(strip_verb("Running late, so skip"), "late, so skip");
         assert_eq!(strip_verb("echo hi"), "echo hi");
     }
