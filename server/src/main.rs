@@ -43,7 +43,10 @@ pub fn random_bytes(n: usize) -> Vec<u8> {
 }
 
 fn random_hex(n: usize) -> String {
-    random_bytes(n).iter().map(|x| format!("{x:02x}")).collect()
+    random_bytes(n)
+        .iter()
+        .map(|x| format!("{x:02x}"))
+        .collect()
 }
 
 pub fn short_id() -> String {
@@ -195,12 +198,20 @@ struct Auth {
 
 /// AUTH_PASSWORD, or a random one for this run when it's empty, so nothing reaches the Bots without a login.
 fn login_password(configured: String) -> (String, bool) {
-    if configured.is_empty() { (random_hex(16), true) } else { (configured, false) }
+    if configured.is_empty() {
+        (random_hex(16), true)
+    } else {
+        (configured, false)
+    }
 }
 
 /// `host:port`, with brackets for IPv6.
 fn host_port(host: &str, port: u16) -> String {
-    if host.contains(':') { format!("[{host}]:{port}") } else { format!("{host}:{port}") }
+    if host.contains(':') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
 }
 
 /// The server's own address and the loopback names on its port, plus ALLOWED_HOSTS (comma separated).
@@ -208,24 +219,49 @@ fn allowed_hosts(host: &str, port: u16, extra: &str) -> Vec<String> {
     let names = [host, "localhost", "127.0.0.1", "::1"];
     let mut own: Vec<String> = names.map(|h| host_port(h, port)).into();
     if port == 80 {
-        own.extend(names.map(|h| if h.contains(':') { format!("[{h}]") } else { h.to_owned() }));
+        own.extend(names.map(|h| {
+            if h.contains(':') {
+                format!("[{h}]")
+            } else {
+                h.to_owned()
+            }
+        }));
     }
-    let extra = extra.split(',').map(str::trim).filter(|h| !h.is_empty()).map(String::from);
-    own.into_iter().chain(extra).map(|h| h.to_ascii_lowercase()).collect()
+    let extra = extra
+        .split(',')
+        .map(str::trim)
+        .filter(|h| !h.is_empty())
+        .map(String::from);
+    own.into_iter()
+        .chain(extra)
+        .map(|h| h.to_ascii_lowercase())
+        .collect()
 }
 
 async fn auth(State(a): State<Arc<Auth>>, req: Request, next: Next) -> Response {
     // Only answer to our own names, so a web page can't reach us through DNS rebinding.
-    let host = req.headers().get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if !a.hosts.iter().any(|h| h.eq_ignore_ascii_case(host)) {
-        return (StatusCode::FORBIDDEN, "Unknown Host. Add it to ALLOWED_HOSTS.").into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            "Unknown Host. Add it to ALLOWED_HOSTS.",
+        )
+            .into_response();
     }
     let h = req.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).unwrap_or("");
-    let ok = h.strip_prefix("Bearer ").is_some_and(|t| same(t.as_bytes(), a.bot_token.as_bytes()))
-        || h.strip_prefix("Basic ").and_then(base64_decode).is_some_and(|creds| {
-            let pass = creds.splitn(2, |b| *b == b':').nth(1).unwrap_or_default();
-            same(pass, a.password.as_bytes())
-        });
+    let ok = h
+        .strip_prefix("Bearer ")
+        .is_some_and(|t| same(t.as_bytes(), a.bot_token.as_bytes()))
+        || h.strip_prefix("Basic ")
+            .and_then(base64_decode)
+            .is_some_and(|creds| {
+                let pass = creds.splitn(2, |b| *b == b':').nth(1).unwrap_or_default();
+                same(pass, a.password.as_bytes())
+            });
     if ok {
         next.run(req).await
     } else {
@@ -527,23 +563,34 @@ mod tests {
 
     /// Serves a stub API behind `auth` on a free local port.
     async fn serve(password: &str) -> u16 {
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
         let port = listener.local_addr().unwrap().port();
         let state = Arc::new(Auth {
             password: password.into(),
             bot_token: "bot-token".into(),
             hosts: allowed_hosts("127.0.0.1", port, "bots.example.com"),
         });
-        let router = Router::new().route("/api/state", get(|| async { "ok" })).layer(middleware::from_fn_with_state(state, auth));
+        let router = Router::new()
+            .route("/api/state", get(|| async { "ok" }))
+            .layer(middleware::from_fn_with_state(state, auth));
         tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
         port
     }
 
     /// Status code of `GET /api/state` sent with this Host and Authorization.
     async fn status(port: u16, host: &str, authorization: &str) -> u16 {
-        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        let auth = if authorization.is_empty() { String::new() } else { format!("Authorization: {authorization}\r\n") };
-        let req = format!("GET /api/state HTTP/1.1\r\nHost: {host}\r\n{auth}Connection: close\r\n\r\n");
+        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .unwrap();
+        let auth = if authorization.is_empty() {
+            String::new()
+        } else {
+            format!("Authorization: {authorization}\r\n")
+        };
+        let req =
+            format!("GET /api/state HTTP/1.1\r\nHost: {host}\r\n{auth}Connection: close\r\n\r\n");
         s.write_all(req.as_bytes()).await.unwrap();
         let mut res = String::new();
         s.read_to_string(&mut res).await.unwrap();
@@ -554,9 +601,16 @@ mod tests {
         const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut out = String::new();
         for c in format!("anyone:{password}").as_bytes().chunks(3) {
-            let n = c.iter().enumerate().fold(0u32, |n, (i, b)| n | ((*b as u32) << (16 - 8 * i)));
+            let n = c
+                .iter()
+                .enumerate()
+                .fold(0u32, |n, (i, b)| n | ((*b as u32) << (16 - 8 * i)));
             for i in 0..4 {
-                out.push(if i <= c.len() { T[((n >> (18 - 6 * i)) & 63) as usize] as char } else { '=' });
+                out.push(if i <= c.len() {
+                    T[((n >> (18 - 6 * i)) & 63) as usize] as char
+                } else {
+                    '='
+                });
             }
         }
         format!("Basic {out}")
@@ -565,19 +619,36 @@ mod tests {
     #[tokio::test]
     async fn spoofed_host_is_refused() {
         let port = serve("hunter2").await;
-        assert_eq!(status(port, "attacker.example", &basic("hunter2")).await, 403);
-        assert_eq!(status(port, &format!("attacker.example:{port}"), &basic("hunter2")).await, 403);
+        assert_eq!(
+            status(port, "attacker.example", &basic("hunter2")).await,
+            403
+        );
+        assert_eq!(
+            status(port, &format!("attacker.example:{port}"), &basic("hunter2")).await,
+            403
+        );
         assert_eq!(status(port, "127.0.0.1:1", &basic("hunter2")).await, 403);
     }
 
     #[tokio::test]
     async fn own_hosts_are_accepted() {
         let port = serve("hunter2").await;
-        for host in [format!("127.0.0.1:{port}"), format!("LocalHost:{port}"), format!("[::1]:{port}"), "bots.example.com".into()] {
+        for host in [
+            format!("127.0.0.1:{port}"),
+            format!("LocalHost:{port}"),
+            format!("[::1]:{port}"),
+            "bots.example.com".into(),
+        ] {
             assert_eq!(status(port, &host, &basic("hunter2")).await, 200, "{host}");
         }
-        assert_eq!(status(port, &format!("localhost:{port}"), &basic("wrong")).await, 401);
-        assert_eq!(status(port, &format!("localhost:{port}"), "Bearer bot-token").await, 200);
+        assert_eq!(
+            status(port, &format!("localhost:{port}"), &basic("wrong")).await,
+            401
+        );
+        assert_eq!(
+            status(port, &format!("localhost:{port}"), "Bearer bot-token").await,
+            200
+        );
     }
 
     #[tokio::test]
@@ -596,11 +667,32 @@ mod tests {
 
     #[test]
     fn allowed_host_names() {
-        assert_eq!(allowed_hosts("::1", 3000, ""), ["[::1]:3000", "localhost:3000", "127.0.0.1:3000", "[::1]:3000"]);
-        assert_eq!(allowed_hosts("127.0.0.1", 3000, " Bots.Example.com ,")[4..], ["bots.example.com"]);
-        assert_eq!(allowed_hosts("Bots.Example.com", 80, " Proxy.Example.com ,"), [
-            "bots.example.com:80", "localhost:80", "127.0.0.1:80", "[::1]:80",
-            "bots.example.com", "localhost", "127.0.0.1", "[::1]", "proxy.example.com",
-        ]);
+        assert_eq!(
+            allowed_hosts("::1", 3000, ""),
+            [
+                "[::1]:3000",
+                "localhost:3000",
+                "127.0.0.1:3000",
+                "[::1]:3000"
+            ]
+        );
+        assert_eq!(
+            allowed_hosts("127.0.0.1", 3000, " Bots.Example.com ,")[4..],
+            ["bots.example.com"]
+        );
+        assert_eq!(
+            allowed_hosts("Bots.Example.com", 80, " Proxy.Example.com ,"),
+            [
+                "bots.example.com:80",
+                "localhost:80",
+                "127.0.0.1:80",
+                "[::1]:80",
+                "bots.example.com",
+                "localhost",
+                "127.0.0.1",
+                "[::1]",
+                "proxy.example.com",
+            ]
+        );
     }
 }
