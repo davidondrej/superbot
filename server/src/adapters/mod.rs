@@ -1,9 +1,10 @@
-//! The only contract between the server and a harness (Claude Code, Codex, Pi).
+//! The only contract between the server and a harness (Claude Code, Codex, Pi, omp).
 //! Each adapter builds a command line and maps the harness's JSON lines to `AgentEvent`s.
 //! Spawning, streaming, stopping, and exit handling are shared here.
 
 mod claude;
 mod codex;
+mod omp;
 mod pi;
 
 use serde_json::Value;
@@ -91,13 +92,14 @@ pub fn output(bin: &str, args: &[&str]) -> String {
 }
 
 /// To add a harness: write one adapter file and list it here.
-pub const NAMES: [&str; 3] = ["claude", "codex", "pi"];
+pub const NAMES: [&str; 4] = ["claude", "codex", "pi", "omp"];
 
 pub fn get(name: &str) -> Option<Box<dyn Adapter>> {
     match name {
         "claude" => Some(Box::new(claude::Claude::default())),
         "codex" => Some(Box::new(codex::Codex)),
         "pi" => Some(Box::new(pi::Pi)),
+        "omp" => Some(Box::new(omp::Omp)),
         _ => None,
     }
 }

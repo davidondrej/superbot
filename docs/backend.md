@@ -4,7 +4,7 @@ One Rust binary, `botd`. It serves the web app, stores everything in SQLite, and
 
 ## How it works
 
-- **Bots** live in SQLite. Each Bot has a harness (`claude`, `codex`, or `pi`), an optional model, and a harness session id.
+- **Bots** live in SQLite. Each Bot has a harness (`claude`, `codex`, `pi`, or `omp`), an optional model, and a harness session id.
 - **A message** is queued. Each Bot runs one task at a time, in order. Different Bots run in parallel.
 - **A run** spawns the harness CLI in the shared workspace, streams its JSON events, and saves each text block as a chat bubble.
 - **Live updates** go to the browser over one Server-Sent Events stream: new messages, streaming text, and what the Bot is doing ("Running: ls").
@@ -25,8 +25,9 @@ Each adapter is one file in `server/src/adapters/`. It builds the command line a
 - **Claude Code**: `claude -p --output-format stream-json --resume <id>`. System prompt via `--append-system-prompt`, fresh every run.
 - **Codex**: `codex exec --json`, then `codex exec resume <id>`. Instructions via `-c developer_instructions=...`. Codex only reads them when a session starts, so later memory edits reach it through the memory file.
 - **Pi**: `pi --mode json --session-dir <bot dir> --session-id <id>`. System prompt via `--append-system-prompt`.
+- **omp**: `omp -p --mode json --session-dir <bot dir>`, resumed with `-r <id>`. System prompt via `--append-system-prompt`, fresh every run. Models and thinking levels come from `omp models --json`.
 
-All three run with permission prompts off (`--dangerously-skip-permissions` and equivalents). The server is the computer, so treat it that way. Approvals are not built yet.
+All four run with permission prompts off (`--dangerously-skip-permissions` and equivalents). The server is the computer, so treat it that way. Approvals are not built yet.
 
 Add a harness: write one adapter file and add it to `get()` and `NAMES` in `adapters/mod.rs`.
 
