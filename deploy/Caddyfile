@@ -1,0 +1,12 @@
+# Local reverse proxy for the Bots app, per docs/computer.md § Proxy.
+# Ports are 6800 + SCREEN_BASE + slot (SCREEN_BASE=200 here, so 7001..).
+:4788 {
+	@screen path_regexp screen ^/screen/(69\d\d|70\d\d)/
+	handle @screen {
+		uri strip_prefix /screen/{re.screen.1}
+		reverse_proxy 127.0.0.1:{re.screen.1}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:4787
+	}
+}
