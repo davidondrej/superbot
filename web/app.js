@@ -93,6 +93,15 @@ let activeId = localStorage.getItem("activeBot");
 let filter = "";
 let showHidden = false;
 
+// Phones: the Bots list and the chat are two views, and the panels and Back
+// use history, so Android's back button and an edge swipe both work.
+const mqPhone = window.matchMedia("(max-width: 719px)");
+const isPhone = () => mqPhone.matches;
+const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
+const setView = (name) => { document.body.dataset.view = name; };
+const pushView = (view) => { if (isPhone()) history.pushState({ view }, ""); };
+let screenPushed = false;
+
 const bot = (id) => bots.find((b) => b.id === id);
 const primary = () => bots.find((b) => b.primary);
 
@@ -295,7 +304,9 @@ async function loadScreen() {
   try {
     const { url } = await api("GET", `/api/bots/${id}/screen`); // also keeps it running while you watch
     if (id !== activeId || $("screen").hidden) return;
-    if (frame.dataset.url !== url) { frame.dataset.url = url; frame.src = url; setTakeover(false); }
+    // On a touch device, view-only means unusable: voxl handles taps, drags and
+    // pinches inside the frame, so start in takeover there and view-only on desktop.
+    if (frame.dataset.url !== url) { frame.dataset.url = url; frame.src = url; setTakeover(coarsePointer()); }
     $("screen-msg").hidden = true;
   } catch (err) {
     frame.removeAttribute("src"); delete frame.dataset.url;
@@ -306,18 +317,20 @@ async function loadScreen() {
 function openScreen() {
   if (details.open) closeDetails(); // one right-hand panel at a time
   $("screen").hidden = false;
+  if (isPhone()) { screenPushed = true; pushView("screen"); }
   loadScreen();
   clearInterval(screenTimer);
   screenTimer = setInterval(loadScreen, 60000);
 }
 function closeScreen() {
+  screenPushed = false;
   $("screen").hidden = true;
   clearInterval(screenTimer);
   $("screen-frame").removeAttribute("src");
   delete $("screen-frame").dataset.url;
 }
-$("screen-btn").addEventListener("click", () => ($("screen").hidden ? openScreen() : closeScreen()));
-$("screen-close").addEventListener("click", closeScreen);
+$("screen-btn").addEventListener("click", () => ($("screen").hidden ? openScreen() : dismissScreen()));
+$("screen-close").addEventListener("click", () => dismissScreen());
 $("screen-take").addEventListener("click", () => {
   const on = !$("screen-shield").hidden;
   setTakeover(on);
@@ -368,9 +381,14 @@ async function load(refresh) {
 // Events
 $("bot-list").addEventListener("click", (e) => {
   const row = e.target.closest(".bot-row");
-  if (row) open(row.dataset.id);
+  if (!row) return;
+  pushView("chat"); setView("chat"); // before the await in open(), so Back stays consistent
+  open(row.dataset.id);
 });
-$("primary-bot").addEventListener("click", () => open(primary()?.id));
+$("primary-bot").addEventListener("click", () => {
+  pushView("chat"); setView("chat");
+  open(primary()?.id);
+});
 
 $("messages").addEventListener("click", (e) => {
   if (e.target.closest("#stop")) return void api("POST", `/api/bots/${activeId}/stop`).catch(() => {});
@@ -450,6 +468,7 @@ $("nb-form").addEventListener("submit", async (e) => {
     const b = await api("POST", "/api/bots", { name, color: nb.color, shape: nb.shape, harness: nb.harness });
     upsertBot(b);
     closeNewBot();
+    pushView("chat"); setView("chat");
     open(b.id);
   } catch (err) {
     $("nb-error").textContent = err.message;
@@ -469,13 +488,14 @@ const details = { open: false, tab: "activity", routines: [] };
 
 async function openDetails() {
   details.open = true;
+  if (isPhone()) { details.pushed = true; pushView("details"); }
   if (!$("screen").hidden) closeScreen(); // one right-hand panel at a time
   details.routines = [];
   renderDetails();
   try { details.routines = await api("GET", `/api/bots/${activeId}/routines`); } catch {}
   renderDetails();
 }
-function closeDetails() { details.open = false; renderDetails(); }
+function closeDetails() { details.open = false; details.pushed = false; renderDetails(); }
 
 function renderDetails() {
   const el = $("details");
@@ -525,11 +545,11 @@ async function patchBot(body) {
   catch (err) { alert(err.message); }
 }
 
-$("bot-pill").addEventListener("click", () => (details.open ? closeDetails() : openDetails()));
+$("bot-pill").addEventListener("click", () => (details.open ? dismissDetails() : openDetails()));
 $("details").addEventListener("click", async (e) => {
   const t = e.target.closest("button");
   if (!t) return;
-  if (t.id === "d-close") return closeDetails();
+  if (t.id === "d-close") return dismissDetails();
   if (t.dataset.tab) { details.tab = t.dataset.tab; return renderDetails(); }
   if (t.dataset.prefill) { $("input").value = t.dataset.prefill; $("input").focus(); return; }
   if (t.id === "d-hide") return patchBot({ hidden: !bot(activeId).hidden });
@@ -565,5 +585,56 @@ $("search").addEventListener("input", (e) => { filter = e.target.value; renderSi
 $("messages").addEventListener("scroll", updateScrollBtn);
 $("scroll-down").addEventListener("click", () => $("messages").scrollTo({ top: $("messages").scrollHeight, behavior: "smooth" }));
 window.addEventListener("focus", () => { markRead(); renderSidebar(); });
+
+// ---- Phones: Back, history and the on-screen keyboard ----------------------
+// Seed a Bots entry, so Back from a restored chat returns to the list instead
+// of leaving the app (Android's back button and gesture both come through here).
+if (isPhone()) {
+  history.replaceState({ view: "bots" }, "");
+  setView(activeId ? "chat" : "bots");
+  if (activeId) history.pushState({ view: "chat" }, "");
+} else {
+  setView(activeId ? "chat" : "bots");
+}
+mqPhone.addEventListener("change", () => setView(activeId ? "chat" : "bots"));
+
+// Closing a panel is a UI action, not a traversal: fold its history entry back
+// into "chat" instead of calling history.back(), which the browser throttles
+// when several arrive close together.
+function dismissDetails() {
+  if (isPhone() && details.pushed) history.replaceState({ view: "chat" }, "");
+  closeDetails();
+}
+function dismissScreen() {
+  if (isPhone() && screenPushed) history.replaceState({ view: "chat" }, "");
+  closeScreen();
+}
+
+$("back-btn").addEventListener("click", () => {
+  setView("bots"); // instant, even if the history traversal lands later
+  const state = history.state?.view;
+  if (state && state !== "bots") history.back();
+});
+addEventListener("popstate", () => {
+  if (details.open) return closeDetails();
+  if (!$("screen").hidden) return closeScreen();
+  if (isPhone()) setView("bots");
+});
+
+// The keyboard shrinks the visual viewport, not the layout one (iOS always,
+// Android without interactive-widget). Lift the composer by the difference.
+function keyboardInset() {
+  const vv = window.visualViewport;
+  if (!vv) return 0;
+  return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+}
+function onViewportChange() {
+  const kb = keyboardInset();
+  document.documentElement.style.setProperty("--kb", `${kb}px`);
+  if (kb > 0) scrollToBottom();
+}
+window.visualViewport?.addEventListener("resize", onViewportChange);
+window.visualViewport?.addEventListener("scroll", onViewportChange);
+$("input").addEventListener("focus", () => setTimeout(onViewportChange, 60));
 
 load().then(connect).catch((err) => { $("messages").innerHTML = `<div class="timestamp">Can't reach the server: ${esc(err.message)}</div>`; });

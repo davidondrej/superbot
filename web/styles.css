@@ -12,7 +12,7 @@
   --blue-dot: #4b8df8;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg-main);
@@ -23,7 +23,7 @@ body {
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-.app { display: flex; height: 100vh; }
+.app { display: flex; height: 100vh; height: 100dvh; }
 
 /* Sidebar */
 .sidebar {
@@ -307,3 +307,110 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .switch span { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
 .switch.on { background: var(--blue); }
 .switch.on span { transform: translateX(16px); }
+
+/* ---- Phones and small tablets ------------------------------------------
+   Desktop keeps the three-column shell. Below 1100px the details and screen
+   panels cover the app instead of squeezing the chat; below 720px the Bots
+   list and the chat are two views, one at a time, and the composer sits above
+   the on-screen keyboard. --kb is the keyboard height, set from JS. */
+
+.back-btn { display: none; }
+
+@media (max-width: 1099px) {
+  .details { position: fixed; inset: 0; width: 100%; z-index: 30; padding: 18px 18px calc(24px + env(safe-area-inset-bottom)); }
+  .details .d-close { width: 44px; height: 44px; top: 12px; right: 12px; }
+  .screen { position: fixed; inset: 0; width: 100%; min-width: 0; z-index: 40; }
+  .screen-view { margin: 0 10px calc(10px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 719px) {
+  body { overscroll-behavior: none; }
+
+  /* One view at a time: the Bots list, or the chat. */
+  body[data-view="chat"] .sidebar,
+  body[data-view="bots"] .chat { display: none; }
+  body[data-view="chat"] .chat { animation: chat-in .18s ease-out; }
+  @keyframes chat-in { from { transform: translateX(16px); opacity: .5; } }
+
+  .sidebar {
+    width: 100%;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .chat { width: 100%; min-width: 0; }
+
+  /* Hit areas stay ≥44px; only the glyphs are small. */
+  .sidebar .icon-btn { width: 44px; height: 44px; }
+  .hidden-bots { min-height: 44px; }
+  .bot-row { padding-top: 10px; padding-bottom: 10px; }
+  .me { min-height: 44px; }
+
+  /* Header: back, Bot, Screen. Attach and Share are gone on a phone. */
+  .chat-header {
+    height: auto; min-height: 56px; justify-content: flex-start; gap: 6px;
+    padding: max(6px, env(safe-area-inset-top)) 10px 6px;
+  }
+  .back-btn { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; }
+  .bot-pill { flex: 1; min-width: 0; padding: 6px 12px 6px 8px; }
+  .bot-pill > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bot-pill .harness, .share-btn { display: none; }
+  .share-btn.screen-btn { display: grid; place-items: center; position: static; width: auto; height: 44px; padding: 0 14px; }
+
+  /* Messages clear the composer, the model bar and the keyboard. */
+  .messages { padding: 12px 14px calc(150px + var(--kb, 0px) + env(safe-area-inset-bottom)) 14px; overscroll-behavior-y: contain; }
+  .msg-row, .timestamp { max-width: 100%; }
+  .bubble { padding: 9px 13px; }
+  .bubble pre { font-size: 13.5px; }
+  .actions { opacity: .5; }
+  .msg-row:active .actions, .actions:active { opacity: 1; }
+  .actions button { width: 40px; height: 40px; }
+  .question { padding: 14px 16px 8px; }
+  .question .option { padding: 10px 12px; }
+  .question .open-screen { padding: 10px 16px; }
+  .typing .stop { padding: 4px 12px; }
+
+  .scroll-down { bottom: calc(160px + var(--kb, 0px) + env(safe-area-inset-bottom)); width: 42px; height: 42px; }
+
+  /* Composer: full width, above the keyboard and the home indicator. */
+  .composer {
+    left: 10px; right: 10px;
+    bottom: calc(10px + var(--kb, 0px) + env(safe-area-inset-bottom));
+    border-radius: 24px; padding: 6px 6px 6px 14px;
+  }
+  .composer input { font-size: 17px; min-height: 40px; }
+  .composer-plus, .composer-mic { display: none; }
+  .composer-voice { width: 44px; height: 44px; }
+  .footnote { display: none; }
+
+  .model-bar {
+    left: 10px; right: 10px;
+    bottom: calc(84px + var(--kb, 0px) + env(safe-area-inset-bottom));
+    padding: 2px 6px; border-radius: 12px;
+    background: var(--bg-main); border: 1px solid var(--border);
+  }
+  .model-bar select { max-width: 46vw; font-size: 14px; min-height: 40px; }
+
+  /* Panels: full screen, with their own scroll. */
+  .details { padding: max(10px, env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom)); }
+  .details .d-hero { padding-top: 24px; }
+  .d-tabs button { padding: 9px 18px; }
+  .d-item { padding: 13px 16px; }
+  .screen-bar { height: auto; min-height: 52px; padding: max(6px, env(safe-area-inset-top)) 10px 6px; }
+  .screen-take { padding: 10px 16px; }
+  .screen .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; }
+
+  /* New Bot: a full-screen sheet instead of a floating dialog. */
+  .modal-backdrop { align-items: stretch; padding: 0; }
+  .modal { width: 100%; max-width: none; height: 100%; max-height: none; border: 0; border-radius: 0; display: flex; flex-direction: column; }
+  .modal-head { padding: max(14px, env(safe-area-inset-top)) 14px 14px; }
+  .modal-body { flex: 1; overflow-y: auto; padding: 14px 18px calc(20px + env(safe-area-inset-bottom)); }
+  .nb-preview { height: 104px; margin: 0 0 18px; }
+  .nb-input { height: 48px; margin-bottom: 22px; }
+  .nb-shapes { width: 100%; gap: 12px 16px; margin-bottom: 24px; }
+  .nb-shape { width: 52px; height: 52px; }
+  .nb-colors { width: 100%; gap: 16px; }
+  .nb-color { width: 38px; height: 38px; }
+  .modal-foot { flex-wrap: wrap; gap: 10px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
+  .nb-runs { width: 100%; margin-right: 0; }
+  .nb-btn { flex: 1; padding: 12px 18px; }
+}

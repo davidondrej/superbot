@@ -217,21 +217,28 @@ async fn web(uri: axum::http::Uri) -> Response {
         "/" | "/index.html" => "index.html",
         "/app.js" => "app.js",
         "/styles.css" => "styles.css",
+        "/manifest.webmanifest" => "manifest.webmanifest",
+        "/icon-192.png" => "icon-192.png",
+        "/icon-512.png" => "icon-512.png",
         _ => return (StatusCode::NOT_FOUND, "Not found").into_response(),
     };
     let kind = match file.rsplit('.').next() {
         Some("html") => "text/html; charset=utf-8",
         Some("js") => "text/javascript; charset=utf-8",
+        Some("webmanifest") => "application/manifest+json",
+        Some("png") => "image/png",
         _ => "text/css; charset=utf-8",
     };
-    let body = match WEB_DIR.get().unwrap() {
-        Some(dir) => std::fs::read_to_string(dir.join(file)).unwrap_or_default(),
+    let body: Vec<u8> = match WEB_DIR.get().unwrap() {
+        Some(dir) => std::fs::read(dir.join(file)).unwrap_or_default(),
         None => match file {
-            "index.html" => include_str!("../../web/index.html"),
-            "app.js" => include_str!("../../web/app.js"),
-            _ => include_str!("../../web/styles.css"),
-        }
-        .to_string(),
+            "index.html" => include_str!("../../web/index.html").into(),
+            "app.js" => include_str!("../../web/app.js").into(),
+            "styles.css" => include_str!("../../web/styles.css").into(),
+            "manifest.webmanifest" => include_str!("../../web/manifest.webmanifest").into(),
+            "icon-192.png" => include_bytes!("../../web/icon-192.png").to_vec(),
+            _ => include_bytes!("../../web/icon-512.png").to_vec(),
+        },
     };
     ([(header::CONTENT_TYPE, kind), (header::CACHE_CONTROL, "no-cache")], body).into_response()
 }
