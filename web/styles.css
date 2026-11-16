@@ -321,9 +321,16 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .details .d-close { width: 44px; height: 44px; top: 12px; right: 12px; }
   .screen { position: fixed; inset: 0; width: 100%; min-width: 0; z-index: 40; }
   .screen-view { margin: 0 10px calc(10px + env(safe-area-inset-bottom)); }
+
+  /* The sidebar leaves too little for 80px gutters, and an <input> refuses to
+     shrink below its intrinsic width unless told to. */
+  .messages { padding-left: 20px; padding-right: 20px; }
+  .composer, .model-bar { left: 20px; right: 20px; }
+  .composer input { min-width: 0; }
+  .composer-plus, .composer-mic { display: none; }
 }
 
-@media (max-width: 719px) {
+@media (max-width: 719px), (pointer: coarse) and (max-height: 480px) {
   body { overscroll-behavior: none; }
 
   /* One view at a time: the Bots list, or the chat. */
@@ -395,6 +402,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .details .d-hero { padding-top: 24px; }
   .d-tabs button { padding: 9px 18px; }
   .d-item { padding: 13px 16px; }
+  .details select { min-height: 40px; }
+  .details .switch::after { content: ""; position: absolute; inset: -10px; } /* 24px switch, 44px target */
   .screen-bar { height: auto; min-height: 52px; padding: max(6px, env(safe-area-inset-top)) 10px 6px; }
   .screen-take { padding: 10px 16px; }
   .screen .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; }
@@ -413,4 +422,17 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .modal-foot { flex-wrap: wrap; gap: 10px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
   .nb-runs { width: 100%; margin-right: 0; }
   .nb-btn { flex: 1; padding: 12px 18px; }
+}
+
+/* Tablets and touch laptops: same hit areas as phones, without the phone shell. */
+@media (max-width: 1099px) {
+  .composer input, .model-bar select, .details select { min-height: 40px; }
+}
+
+/* No hover: message actions must be visible and big enough to hit. */
+@media (hover: none) {
+  .actions { opacity: .6; }
+  .actions button { width: 40px; height: 40px; }
+  .icon-btn, .modal-close { width: 44px; height: 44px; }
+  .bot-row, .hidden-bots, .d-item { min-height: 44px; }
 }

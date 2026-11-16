@@ -95,7 +95,7 @@ let showHidden = false;
 
 // Phones: the Bots list and the chat are two views, and the panels and Back
 // use history, so Android's back button and an edge swipe both work.
-const mqPhone = window.matchMedia("(max-width: 719px)");
+const mqPhone = window.matchMedia("(max-width: 719px), (pointer: coarse) and (max-height: 480px)");
 const isPhone = () => mqPhone.matches;
 const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
 const setView = (name) => { document.body.dataset.view = name; };
