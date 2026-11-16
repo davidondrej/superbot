@@ -172,7 +172,7 @@ function renderChat(keepScroll) {
   if (!b) { $("messages").innerHTML = ""; return; }
   const el = $("messages");
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  $("bot-pill").innerHTML = `${avatar(b.color, b.shape, 30)}<span>${esc(b.name)}</span><span class="harness">${esc(HARNESS_NAMES[b.harness] || b.harness)}</span>`;
+  $("bot-pill").innerHTML = `${avatar(b.color, b.shape, 30)}<span>${esc(b.name)}</span><span class="harness">${esc(b.harness)}</span>`;
   $("input").placeholder = `Message ${b.name}`;
   const list = messages[b.id] || [];
   let html = list.map((m, i) => renderMessage(m, list[i - 1])).join("");
@@ -295,7 +295,7 @@ async function loadScreen() {
   try {
     const { url } = await api("GET", `/api/bots/${id}/screen`); // also keeps it running while you watch
     if (id !== activeId || $("screen").hidden) return;
-    if (frame.dataset.url !== url) { frame.dataset.url = url; frame.dataset.tries = "0"; frame.src = url; setTakeover(false); }
+    if (frame.dataset.url !== url) { frame.dataset.url = url; frame.src = url; setTakeover(false); }
     $("screen-msg").hidden = true;
   } catch (err) {
     frame.removeAttribute("src"); delete frame.dataset.url;
@@ -303,36 +303,6 @@ async function loadScreen() {
     $("screen-msg").hidden = false;
   }
 }
-// voxl builds its <video> from script, so check a moment after load, not during it.
-// A frame that raced voxl's startup can hold a page with no live stream; reload once.
-function screenStalled() {
-  const frame = $("screen-frame");
-  let doc;
-  try {
-    doc = frame.contentDocument; // throws when the proxy lives on another origin
-  } catch {
-    return false;
-  }
-  if (!doc) return false;
-  const v = doc.querySelector("video");
-  return !v || v.readyState < 2 || !v.videoWidth;
-}
-function checkScreenFrame() {
-  const frame = $("screen-frame");
-  if (!frame.dataset.url || $("screen").hidden) return;
-  if (!screenStalled()) { $("screen-msg").hidden = true; return; }
-  const tries = Number(frame.dataset.tries || "0");
-  if (tries < 1) {
-    frame.dataset.tries = String(tries + 1);
-    const url = frame.dataset.url;
-    frame.src = `${url}${url.includes("?") ? "&" : "?"}retry=${Date.now()}`;
-    return;
-  }
-  $("screen-msg").textContent =
-    "The screen didn't load. Something in front must route /screen/<port>/ to the Bot's voxl port (see docs/computer.md).";
-  $("screen-msg").hidden = false;
-}
-$("screen-frame").addEventListener("load", () => setTimeout(checkScreenFrame, 2000));
 function openScreen() {
   if (details.open) closeDetails(); // one right-hand panel at a time
   $("screen").hidden = false;
@@ -431,7 +401,7 @@ $("composer").addEventListener("submit", (e) => {
 
 // New Bot window
 const COLORS = ["#f5f5f5", "#9a6b3f", "#e5484d", "#e8702e", "#e9a23b", "#4cc06a", "#4fb5a5", "#3b82f6", "#8b5cf6", "#e64a9c", "#7a7a7a"];
-const HARNESS_NAMES = { claude: "Claude Code", codex: "Codex", pi: "Pi", omp: "oh-my-pi" };
+const HARNESS_NAMES = { claude: "Claude Code", codex: "Codex", pi: "Pi" };
 const nb = { color: COLORS[0], shape: "waddle", harness: "claude" };
 const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
 
