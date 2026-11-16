@@ -49,6 +49,7 @@ Settings are in [.env.example](../.env.example). Keep `botctl` next to `botd`: t
 - Run `botd` as a normal user, not root. Claude Code refuses to skip permissions as root.
 - Run it under systemd with `Restart=always`. It shuts down cleanly on SIGTERM.
 - Put HTTPS in front (e.g. Caddy) and set `AUTH_PASSWORD` and `HOST=0.0.0.0`, or keep `HOST=127.0.0.1` behind the proxy. The browser logs in with any username and that password.
+- Add your domain to `ALLOWED_HOSTS` (e.g. `ALLOWED_HOSTS=bots.example.com`). The server refuses any other `Host`, which blocks DNS rebinding.
 - Proxies must not buffer `/api/events` (it's an SSE stream).
 - Set `TZ` to the user's time zone. Routines use it.
 - Back up `DATA_DIR`. `WORKSPACE_DIR` is the Bots' scratch and files.
@@ -56,7 +57,7 @@ Settings are in [.env.example](../.env.example). Keep `botctl` next to `botd`: t
 
 ## API
 
-All JSON. Browser auth: HTTP Basic with `AUTH_PASSWORD`.
+All JSON. Browser auth: HTTP Basic with `AUTH_PASSWORD`, or the random password `botd` prints at start when it's empty. Requests with a `Host` that isn't the server's own or in `ALLOWED_HOSTS` get 403.
 
 - `GET /api/state`: user name, installed harnesses, all Bots
 - `GET /api/events`: SSE stream (`message`, `draft`, `status`, `bot`, `botDeleted`, `resync`)

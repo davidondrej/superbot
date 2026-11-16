@@ -67,7 +67,7 @@ set -a; . ./.env; set +a
 ./target/release/botd
 ```
 
-Then open the web app and say hi to SuperBot. Install and log in to the agent CLIs you want (`claude`, `codex`, `pi`) as the same user that runs `botd`.
+Then open the web app and say hi to SuperBot. Log in with any username and your `AUTH_PASSWORD`, or, if you left it empty, the password `botd` prints at start. Install and log in to the agent CLIs you want (`claude`, `codex`, `pi`) as the same user that runs `botd`.
 
 Deploying on a VPS: see [Backend](docs/backend.md).
 

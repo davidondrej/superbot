@@ -26,7 +26,6 @@ use tokio_stream::StreamExt;
 
 type AppState = Arc<App>;
 
-static PASSWORD: OnceLock<String> = OnceLock::new();
 static WEB_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 const COLORS: [&str; 11] = ["#f5f5f5", "#9a6b3f", "#e5484d", "#e8702e", "#e9a23b", "#4cc06a", "#4fb5a5", "#3b82f6", "#8b5cf6", "#e64a9c", "#7a7a7a"];
@@ -43,8 +42,12 @@ pub fn random_bytes(n: usize) -> Vec<u8> {
     b
 }
 
+fn random_hex(n: usize) -> String {
+    random_bytes(n).iter().map(|x| format!("{x:02x}")).collect()
+}
+
 pub fn short_id() -> String {
-    random_bytes(4).iter().map(|x| format!("{x:02x}")).collect()
+    random_hex(4)
 }
 
 fn pick<'a>(a: &[&'a str]) -> &'a str {
@@ -65,7 +68,12 @@ async fn main() {
         eprintln!("DEFAULT_HARNESS must be one of: {}", adapters::NAMES.join(", "));
         std::process::exit(1);
     }
-    PASSWORD.set(password).unwrap();
+    let (password, generated) = login_password(password);
+    let auth_state = Arc::new(Auth {
+        password: password.clone(),
+        bot_token: random_hex(24),
+        hosts: allowed_hosts(&host, port, &env("ALLOWED_HOSTS", "")),
+    });
     WEB_DIR.set(std::env::var("WEB_DIR").ok().map(PathBuf::from)).unwrap();
 
     let abs = |p: String| std::path::absolute(p).expect("bad path");
@@ -83,7 +91,7 @@ async fn main() {
         // `botctl` ships next to `botd`.
         bin_dir: std::env::current_exe().unwrap().parent().unwrap().to_path_buf(),
         api_url: format!("http://127.0.0.1:{port}"),
-        bot_token: random_bytes(24).iter().map(|x| format!("{x:02x}")).collect(),
+        bot_token: auth_state.bot_token.clone(),
         run_timeout: Duration::from_secs(60 * env("RUN_TIMEOUT_MINUTES", "60").parse::<u64>().unwrap_or(60)),
         default_harness,
     }, screens);
@@ -112,7 +120,7 @@ async fn main() {
     let router = Router::new()
         .nest("/api", api)
         .fallback(get(web))
-        .layer(middleware::from_fn_with_state(app.clone(), auth))
+        .layer(middleware::from_fn_with_state(auth_state, auth))
         .route("/healthz", get(|| async { Json(json!({ "ok": true })) }))
         .with_state(app.clone());
 
@@ -130,6 +138,10 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind((host.as_str(), port)).await.expect("bind");
     println!("Listening on http://{host}:{port}");
+    if generated {
+        let url = format!("http://{}", host_port(&host, port));
+        println!("No AUTH_PASSWORD set. Open {url} and log in with any username and this password (new each start): {password}");
+    }
     println!("Harnesses on PATH: {}. Default: {}.", adapters::installed().join(", "), app.cfg.default_harness);
     println!("Screens: {}.", if app.screens.is_some() { "on" } else { "off (install Xvfb and openbox to turn them on)" });
 
@@ -174,14 +186,41 @@ type Res<T = Json<Value>> = Result<T, ApiError>;
 
 // Auth: browser login with AUTH_PASSWORD (any username), or the Bots' token for `botctl`.
 
-async fn auth(State(app): State<AppState>, req: Request, next: Next) -> Response {
+struct Auth {
+    password: String,
+    bot_token: String,
+    /// Host headers we answer to, lowercase.
+    hosts: Vec<String>,
+}
+
+/// AUTH_PASSWORD, or a random one for this run when it's empty, so nothing reaches the Bots without a login.
+fn login_password(configured: String) -> (String, bool) {
+    if configured.is_empty() { (random_hex(16), true) } else { (configured, false) }
+}
+
+/// `host:port`, with brackets for IPv6.
+fn host_port(host: &str, port: u16) -> String {
+    if host.contains(':') { format!("[{host}]:{port}") } else { format!("{host}:{port}") }
+}
+
+/// The server's own address and the loopback names on its port, plus ALLOWED_HOSTS (comma separated).
+fn allowed_hosts(host: &str, port: u16, extra: &str) -> Vec<String> {
+    let own = [host, "localhost", "127.0.0.1", "::1"].map(|h| host_port(h, port));
+    let extra = extra.split(',').map(str::trim).filter(|h| !h.is_empty()).map(String::from);
+    own.into_iter().chain(extra).map(|h| h.to_ascii_lowercase()).collect()
+}
+
+async fn auth(State(a): State<Arc<Auth>>, req: Request, next: Next) -> Response {
+    // Only answer to our own names, so a web page can't reach us through DNS rebinding.
+    let host = req.headers().get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+    if !a.hosts.iter().any(|h| h.eq_ignore_ascii_case(host)) {
+        return (StatusCode::FORBIDDEN, "Unknown Host. Add it to ALLOWED_HOSTS.").into_response();
+    }
     let h = req.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).unwrap_or("");
-    let password = PASSWORD.get().unwrap();
-    let ok = password.is_empty()
-        || h.strip_prefix("Bearer ").is_some_and(|t| same(t.as_bytes(), app.cfg.bot_token.as_bytes()))
+    let ok = h.strip_prefix("Bearer ").is_some_and(|t| same(t.as_bytes(), a.bot_token.as_bytes()))
         || h.strip_prefix("Basic ").and_then(base64_decode).is_some_and(|creds| {
             let pass = creds.splitn(2, |b| *b == b':').nth(1).unwrap_or_default();
-            same(pass, password.as_bytes())
+            same(pass, a.password.as_bytes())
         });
     if ok {
         next.run(req).await
@@ -475,4 +514,85 @@ async fn delete_routine(State(app): State<AppState>, Path(id): Path<String>) -> 
     app.db.routine(&id).ok_or_else(|| not_found("Routine"))?;
     app.db.delete_routine(&id);
     Ok(Json(json!({ "ok": true })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Serves a stub API behind `auth` on a free local port.
+    async fn serve(password: &str) -> u16 {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let state = Arc::new(Auth {
+            password: password.into(),
+            bot_token: "bot-token".into(),
+            hosts: allowed_hosts("127.0.0.1", port, "bots.example.com"),
+        });
+        let router = Router::new().route("/api/state", get(|| async { "ok" })).layer(middleware::from_fn_with_state(state, auth));
+        tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        port
+    }
+
+    /// Status code of `GET /api/state` sent with this Host and Authorization.
+    async fn status(port: u16, host: &str, authorization: &str) -> u16 {
+        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        let auth = if authorization.is_empty() { String::new() } else { format!("Authorization: {authorization}\r\n") };
+        let req = format!("GET /api/state HTTP/1.1\r\nHost: {host}\r\n{auth}Connection: close\r\n\r\n");
+        s.write_all(req.as_bytes()).await.unwrap();
+        let mut res = String::new();
+        s.read_to_string(&mut res).await.unwrap();
+        res.split_whitespace().nth(1).unwrap().parse().unwrap()
+    }
+
+    fn basic(password: &str) -> String {
+        const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for c in format!("anyone:{password}").as_bytes().chunks(3) {
+            let n = c.iter().enumerate().fold(0u32, |n, (i, b)| n | ((*b as u32) << (16 - 8 * i)));
+            for i in 0..4 {
+                out.push(if i <= c.len() { T[((n >> (18 - 6 * i)) & 63) as usize] as char } else { '=' });
+            }
+        }
+        format!("Basic {out}")
+    }
+
+    #[tokio::test]
+    async fn spoofed_host_is_refused() {
+        let port = serve("hunter2").await;
+        assert_eq!(status(port, "attacker.example", &basic("hunter2")).await, 403);
+        assert_eq!(status(port, &format!("attacker.example:{port}"), &basic("hunter2")).await, 403);
+        assert_eq!(status(port, "127.0.0.1:1", &basic("hunter2")).await, 403);
+    }
+
+    #[tokio::test]
+    async fn own_hosts_are_accepted() {
+        let port = serve("hunter2").await;
+        for host in [format!("127.0.0.1:{port}"), format!("LocalHost:{port}"), format!("[::1]:{port}"), "bots.example.com".into()] {
+            assert_eq!(status(port, &host, &basic("hunter2")).await, 200, "{host}");
+        }
+        assert_eq!(status(port, &format!("localhost:{port}"), &basic("wrong")).await, 401);
+        assert_eq!(status(port, &format!("localhost:{port}"), "Bearer bot-token").await, 200);
+    }
+
+    #[tokio::test]
+    async fn no_password_still_needs_a_login() {
+        assert_eq!(login_password("hunter2".into()), ("hunter2".into(), false));
+        let (password, generated) = login_password(String::new());
+        assert!(generated && password.len() == 32);
+        assert_ne!(login_password(String::new()).0, password);
+
+        let port = serve(&password).await;
+        let host = format!("127.0.0.1:{port}");
+        assert_eq!(status(port, &host, "").await, 401);
+        assert_eq!(status(port, &host, &basic("")).await, 401);
+        assert_eq!(status(port, &host, &basic(&password)).await, 200);
+    }
+
+    #[test]
+    fn allowed_host_names() {
+        assert_eq!(allowed_hosts("::1", 3000, ""), ["[::1]:3000", "localhost:3000", "127.0.0.1:3000", "[::1]:3000"]);
+        assert_eq!(allowed_hosts("127.0.0.1", 3000, " Bots.Example.com ,")[4..], ["bots.example.com"]);
+    }
 }
