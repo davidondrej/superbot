@@ -58,9 +58,10 @@ impl Adapter for Omp {
                         "text" if !str_of(c, "text").trim().is_empty() => out.push(AgentEvent::Text(str_of(c, "text").into())),
                         "toolCall" => {
                             // `intent` is the model's one-line reason; fall back to the arguments.
+                            // It often starts with the same verb tool_label adds, so drop that.
                             let detail = match str_of(c, "intent") {
                                 "" => describe(&c["arguments"]),
-                                i => short(i),
+                                i => short(i.trim_start_matches("Running ").trim_start_matches("Ran ")),
                             };
                             out.push(AgentEvent::Tool { name: str_of(c, "name").into(), detail });
                         }
