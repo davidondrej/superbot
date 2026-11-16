@@ -140,7 +140,9 @@ async fn main() {
     println!("Listening on http://{host}:{port}");
     if generated {
         let url = format!("http://{}", host_port(&host, port));
-        println!("No AUTH_PASSWORD set. Open {url} and log in with any username and this password (new each start): {password}");
+        println!(
+            "No AUTH_PASSWORD set. Open {url} and log in with any username and this password (new each start): {password}"
+        );
     }
     println!("Harnesses on PATH: {}. Default: {}.", adapters::installed().join(", "), app.cfg.default_harness);
     println!("Screens: {}.", if app.screens.is_some() { "on" } else { "off (install Xvfb and openbox to turn them on)" });
