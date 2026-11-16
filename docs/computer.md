@@ -42,6 +42,8 @@ handle @screen {
 
 Ports are `6800 + SCREEN_BASE + slot`: 6901, 6902, ... by default. voxl checks its own token, so the route needs no extra login.
 
+A ready-to-run copy of this, including the route for the app itself, is in [`deploy/Caddyfile`](../deploy/Caddyfile); adjust the port range if you set `SCREEN_BASE`. Without it the panel stays black: the iframe loads `/screen/<port>/` from `botd`, which has no such route.
+
 ## Sizing
 
 One Bot with Chrome open uses about 0.5 to 1 GB of RAM. Streaming a busy screen uses about one CPU core. A 2 CPU, 8 GB server handles about 3 screens at once.
