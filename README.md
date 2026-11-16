@@ -78,6 +78,7 @@ Bots run on the coding agent you choose:
 - Claude Code CLI (first)
 - Codex CLI
 - Pi Agent
+- omp
 - Grok Build *(planned)*
 - Hermes Agent *(planned)*
 
