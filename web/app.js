@@ -295,7 +295,7 @@ async function loadScreen() {
   try {
     const { url } = await api("GET", `/api/bots/${id}/screen`); // also keeps it running while you watch
     if (id !== activeId || $("screen").hidden) return;
-    if (frame.dataset.url !== url) { frame.dataset.url = url; frame.src = url; setTakeover(false); }
+    if (frame.dataset.url !== url) { frame.dataset.url = url; frame.dataset.tries = "0"; frame.src = url; setTakeover(false); }
     $("screen-msg").hidden = true;
   } catch (err) {
     frame.removeAttribute("src"); delete frame.dataset.url;
@@ -303,6 +303,38 @@ async function loadScreen() {
     $("screen-msg").hidden = false;
   }
 }
+// A frame that raced voxl's startup holds a page with no live stream, and a 404 for
+// /screen/<port>/ still fires load, so a black panel would say nothing. Check for a
+// live player a moment after load, reload once, then name what the operator must fix.
+function screenStalled() {
+  const frame = $("screen-frame");
+  let doc;
+  try {
+    doc = frame.contentDocument; // throws when the proxy lives on another origin
+  } catch {
+    return false;
+  }
+  if (!doc) return false;
+  const v = doc.querySelector("video");
+  return !v || v.readyState < 2 || !v.videoWidth;
+}
+function checkScreenFrame() {
+  const frame = $("screen-frame");
+  if (!frame.dataset.url || $("screen").hidden) return;
+  if (!screenStalled()) { $("screen-msg").hidden = true; return; }
+  const tries = Number(frame.dataset.tries || "0");
+  if (tries < 1) {
+    frame.dataset.tries = String(tries + 1);
+    const url = frame.dataset.url;
+    frame.src = `${url}${url.includes("?") ? "&" : "?"}retry=${Date.now()}`;
+    return;
+  }
+  $("screen-msg").textContent =
+    "The screen didn't load. Something in front must route /screen/<port>/ to the Bot's voxl port (see docs/computer.md).";
+  $("screen-msg").hidden = false;
+}
+// voxl builds its <video> from script, so check after the page has had a moment.
+$("screen-frame").addEventListener("load", () => setTimeout(checkScreenFrame, 2000));
 function openScreen() {
   if (details.open) closeDetails(); // one right-hand panel at a time
   $("screen").hidden = false;
