@@ -328,6 +328,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .composer, .model-bar { left: 20px; right: 20px; }
   .composer input { min-width: 0; }
   .composer-plus, .composer-mic { display: none; }
+  .composer-voice { width: 44px; height: 44px; }
 }
 
 @media (max-width: 719px), (pointer: coarse) and (max-height: 480px) {
@@ -437,7 +438,6 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .icon-btn, .modal-close { width: 44px; height: 44px; }
   .bot-row, .hidden-bots, .d-item { min-height: 44px; }
   .share-btn, .d-tabs button, .screen-take { min-height: 44px; }
-  .composer-voice { width: 44px; height: 44px; }
   /* The pill stays 24px tall; its hit area does not. */
   .switch { position: relative; }
   .switch::after { content: ""; position: absolute; inset: -10px; }
