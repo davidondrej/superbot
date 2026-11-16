@@ -202,6 +202,7 @@ async function open(id) {
   if (!id) return;
   activeId = id;
   localStorage.setItem("activeBot", id);
+  document.body.classList.remove("menu-open");
   if (!messages[id]) messages[id] = await api("GET", `/api/bots/${id}/messages`);
   markRead();
   render();
@@ -563,6 +564,8 @@ $("search-btn").addEventListener("click", () => {
 });
 $("search").addEventListener("input", (e) => { filter = e.target.value; renderSidebar(); });
 $("messages").addEventListener("scroll", updateScrollBtn);
+$("menu-btn").addEventListener("click", () => document.body.classList.toggle("menu-open"));
+$("scrim").addEventListener("click", () => document.body.classList.remove("menu-open"));
 $("scroll-down").addEventListener("click", () => $("messages").scrollTo({ top: $("messages").scrollHeight, behavior: "smooth" }));
 window.addEventListener("focus", () => { markRead(); renderSidebar(); });
 
