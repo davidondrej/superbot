@@ -202,7 +202,6 @@ async function open(id) {
   if (!id) return;
   activeId = id;
   localStorage.setItem("activeBot", id);
-  document.body.classList.remove("menu-open");
   if (!messages[id]) messages[id] = await api("GET", `/api/bots/${id}/messages`);
   markRead();
   render();
@@ -402,7 +401,7 @@ $("composer").addEventListener("submit", (e) => {
 
 // New Bot window
 const COLORS = ["#f5f5f5", "#9a6b3f", "#e5484d", "#e8702e", "#e9a23b", "#4cc06a", "#4fb5a5", "#3b82f6", "#8b5cf6", "#e64a9c", "#7a7a7a"];
-const HARNESS_NAMES = { claude: "Claude Code", codex: "Codex", pi: "Pi" };
+const HARNESS_NAMES = { claude: "Claude Code", codex: "Codex", pi: "Pi", omp: "omp" };
 const nb = { color: COLORS[0], shape: "waddle", harness: "claude" };
 const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -564,8 +563,6 @@ $("search-btn").addEventListener("click", () => {
 });
 $("search").addEventListener("input", (e) => { filter = e.target.value; renderSidebar(); });
 $("messages").addEventListener("scroll", updateScrollBtn);
-$("menu-btn").addEventListener("click", () => document.body.classList.toggle("menu-open"));
-$("scrim").addEventListener("click", () => document.body.classList.remove("menu-open"));
 $("scroll-down").addEventListener("click", () => $("messages").scrollTo({ top: $("messages").scrollHeight, behavior: "smooth" }));
 window.addEventListener("focus", () => { markRead(); renderSidebar(); });
 
