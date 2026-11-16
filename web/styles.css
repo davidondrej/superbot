@@ -351,6 +351,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .hidden-bots { min-height: 44px; }
   .bot-row { padding-top: 10px; padding-bottom: 10px; }
   .me { min-height: 44px; }
+  .sidebar-bottom .icon-btn { display: none; } /* the Apps grid does nothing yet */
 
   /* Header: back, Bot, Screen. Attach and Share are gone on a phone. */
   .chat-header {
