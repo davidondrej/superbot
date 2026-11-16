@@ -205,7 +205,11 @@ fn host_port(host: &str, port: u16) -> String {
 
 /// The server's own address and the loopback names on its port, plus ALLOWED_HOSTS (comma separated).
 fn allowed_hosts(host: &str, port: u16, extra: &str) -> Vec<String> {
-    let own = [host, "localhost", "127.0.0.1", "::1"].map(|h| host_port(h, port));
+    let names = [host, "localhost", "127.0.0.1", "::1"];
+    let mut own: Vec<String> = names.map(|h| host_port(h, port)).into();
+    if port == 80 {
+        own.extend(names.map(|h| if h.contains(':') { format!("[{h}]") } else { h.to_owned() }));
+    }
     let extra = extra.split(',').map(str::trim).filter(|h| !h.is_empty()).map(String::from);
     own.into_iter().chain(extra).map(|h| h.to_ascii_lowercase()).collect()
 }
@@ -594,5 +598,9 @@ mod tests {
     fn allowed_host_names() {
         assert_eq!(allowed_hosts("::1", 3000, ""), ["[::1]:3000", "localhost:3000", "127.0.0.1:3000", "[::1]:3000"]);
         assert_eq!(allowed_hosts("127.0.0.1", 3000, " Bots.Example.com ,")[4..], ["bots.example.com"]);
+        assert_eq!(allowed_hosts("Bots.Example.com", 80, " Proxy.Example.com ,"), [
+            "bots.example.com:80", "localhost:80", "127.0.0.1:80", "[::1]:80",
+            "bots.example.com", "localhost", "127.0.0.1", "[::1]", "proxy.example.com",
+        ]);
     }
 }
