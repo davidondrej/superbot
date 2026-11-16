@@ -163,24 +163,25 @@ pub async fn run(
     // a chatty harness can't exhaust memory.
     let stderr_task = tokio::spawn(async move {
         const STDERR_CAP: usize = 64 * 1024;
-        let mut s = String::new();
-        let mut buf = [0u8; 8192];
+        let mut buf: Vec<u8> = Vec::new();
+        let mut chunk = [0u8; 8192];
         loop {
-            match stderr.read(&mut buf).await {
+            match stderr.read(&mut chunk).await {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    s.push_str(&String::from_utf8_lossy(&buf[..n]));
-                    if s.len() > STDERR_CAP {
-                        let mut cut = s.len() - STDERR_CAP;
-                        while !s.is_char_boundary(cut) {
-                            cut -= 1;
+                    buf.extend_from_slice(&chunk[..n]);
+                    if buf.len() > STDERR_CAP {
+                        // Drop from the front up to a char start, so the kept tail is valid UTF-8.
+                        let mut cut = buf.len() - STDERR_CAP;
+                        while cut < buf.len() && (buf[cut] & 0xC0) == 0x80 {
+                            cut += 1;
                         }
-                        s.drain(..cut);
+                        buf.drain(..cut);
                     }
                 }
             }
         }
-        s
+        String::from_utf8_lossy(&buf).into_owned()
     });
 
     // JSON lines. Split only on "\n": some harnesses put U+2028 inside JSON strings.
