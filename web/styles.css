@@ -245,7 +245,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   .composer { left: 14px; right: 14px; }
   .model-bar { left: 24px; right: 24px; bottom: 92px; }
   .model-bar select { max-width: 38vw; }
-  .details { width: 100vw; border-left: 0; }
+  .app > .details { width: 100vw; border-left: 0; }
+  .screen { position: fixed; inset: 0; z-index: 20; width: 100%; min-width: 0; border-left: 0; }
   .footnote { display: none; }
 }
 .msg-row.peer { justify-content: flex-end; }
