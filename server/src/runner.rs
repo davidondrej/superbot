@@ -12,6 +12,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{broadcast, oneshot, watch};
 
+/// Context guard: these files are injected into every run's prompt, so a runaway
+/// memory file can't silently eat the context window.
+const MEMORY_PROMPT_CAP: usize = 32 * 1024;
+const USER_PROMPT_CAP: usize = 8 * 1024;
+
 pub struct Config {
     pub data_dir: PathBuf,
     pub workspace: PathBuf,
@@ -382,7 +387,14 @@ impl App {
     }
 
     fn system_prompt(&self, bot: &Bot) -> String {
-        let read = |p: PathBuf| std::fs::read_to_string(p).unwrap_or_default().trim().to_string();
+        let read = |p: PathBuf, cap: usize| {
+            let (s, cut) = read_capped(p, cap);
+            if cut {
+                format!("{s}\n\n(This file got too long and was cut. Keep it short: remove what no longer matters.)")
+            } else {
+                s
+            }
+        };
         let others: Vec<String> =
             self.db.bots().iter().filter(|b| b.id != bot.id).map(|b| format!("- {} (id {})", b.name, b.id)).collect();
         let primary = if bot.primary {
@@ -436,8 +448,8 @@ Current time: {now}."#,
             ws = self.cfg.workspace.display(),
             mem_path = self.memory_file(&bot.id).display(),
             user_path = self.user_file().display(),
-            mem = read(self.memory_file(&bot.id)),
-            user_facts = read(self.user_file()),
+            mem = read(self.memory_file(&bot.id), MEMORY_PROMPT_CAP),
+            user_facts = read(self.user_file(), USER_PROMPT_CAP),
             others = if others.is_empty() { "None yet.".into() } else { others.join("\n") },
             now = chrono::Local::now().format("%A, %B %-d, %Y, %H:%M (UTC%:z)"),
         )
@@ -486,4 +498,55 @@ fn screen_prompt(botctl: &str) -> String {
 - When you need the user on your screen (a login, 2FA code, CAPTCHA, or payment check), run: {botctl} handoff "<what you need, in one line>". It waits until they finish, so give the command a 10 minute timeout. Never ask for passwords in chat.
 "#
     )
+}
+
+/// Reads a file cut to `cap` bytes at a char boundary. Returns the text and
+/// whether it was cut.
+fn read_capped(path: PathBuf, cap: usize) -> (String, bool) {
+    let mut buf = Vec::new();
+    if let Ok(f) = std::fs::File::open(&path) {
+        use std::io::Read;
+        let _ = f.take(cap as u64 + 1).read_to_end(&mut buf);
+    }
+    if buf.len() <= cap {
+        return (String::from_utf8_lossy(&buf).trim().to_string(), false);
+    }
+    // Read one byte past `cap`, so buf[cap] exists as the sentinel for the
+    // char-boundary check: the prefix is valid when buf[end] starts a char.
+    let mut end = cap;
+    while end > 0 && (buf[end] & 0xC0) == 0x80 {
+        end -= 1;
+    }
+    buf.truncate(end);
+    (String::from_utf8_lossy(&buf).trim().to_string(), true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_cap() {
+        let dir = std::env::temp_dir().join(format!("botd-cap-{}", crate::short_id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("MEMORY.md");
+
+        std::fs::write(&p, "short note").unwrap();
+        assert_eq!(read_capped(p.clone(), 100), ("short note".to_string(), false));
+
+        std::fs::write(&p, "y".repeat(100)).unwrap();
+        let (s, cut) = read_capped(p.clone(), 100);
+        assert!(!cut && s.len() == 100);
+
+        std::fs::write(&p, "x".repeat(500)).unwrap();
+        let (s, cut) = read_capped(p.clone(), 100);
+        assert!(cut && s.len() == 100);
+
+        // A cut inside a multi-byte char stays valid UTF-8.
+        std::fs::write(&p, "é".repeat(100)).unwrap();
+        let (s, cut) = read_capped(p, 100);
+        assert!(cut && !s.contains('\u{FFFD}'));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

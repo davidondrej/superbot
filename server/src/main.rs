@@ -349,6 +349,8 @@ async fn delete_bot(State(app): State<AppState>, Path(id): Path<String>) -> Res 
         screens.remove(&id).await;
     }
     app.db.delete_bot(&id);
+    // Its memory files and harness sessions: the id is never reused.
+    let _ = std::fs::remove_dir_all(app.bot_dir(&id));
     app.send(json!({ "type": "botDeleted", "botId": id }));
     Ok(Json(json!({ "ok": true })))
 }

@@ -8,7 +8,7 @@ One Rust binary, `botd`. It serves the web app, stores everything in SQLite, and
 - **A message** is queued. Each Bot runs one task at a time, in order. Different Bots run in parallel.
 - **A run** spawns the harness CLI in the shared workspace, streams its JSON events, and saves each text block as a chat bubble.
 - **Live updates** go to the browser over one Server-Sent Events stream: new messages, streaming text, and what the Bot is doing ("Running: ls").
-- **Memory** is plain files, re-sent in the system prompt every run. The Bot edits them itself:
+- **Memory** is plain files, re-sent in the system prompt every run (cut at 32 KB per Bot and 8 KB for the shared user file, so a runaway file can't eat the context). The Bot edits them itself:
   - `DATA_DIR/bots/<id>/MEMORY.md`: one Bot's job, rules, and work log.
   - `DATA_DIR/USER.md`: facts about the user, shared by all Bots.
 - **The computer** is `WORKSPACE_DIR`, shared by all Bots, like Grok Bot's shared VM.

@@ -102,9 +102,18 @@ pub fn get(name: &str) -> Option<Box<dyn Adapter>> {
     }
 }
 
-/// Harnesses whose CLI is on PATH.
+/// Harnesses whose CLI is on PATH. The check forks a shell per harness, so the
+/// result is cached for 10 minutes (same TTL as the model lists).
 pub fn installed() -> Vec<&'static str> {
-    NAMES
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static CACHE: Mutex<Option<(Instant, Vec<&'static str>)>> = Mutex::new(None);
+    if let Some((at, list)) = CACHE.lock().unwrap().as_ref()
+        && at.elapsed() < Duration::from_secs(600)
+    {
+        return list.clone();
+    }
+    let list: Vec<&'static str> = NAMES
         .into_iter()
         .filter(|n| {
             let bin = get(n).unwrap().bin();
@@ -114,7 +123,9 @@ pub fn installed() -> Vec<&'static str> {
                 .status()
                 .is_ok_and(|s| s.success())
         })
-        .collect()
+        .collect();
+    *CACHE.lock().unwrap() = Some((Instant::now(), list.clone()));
+    list
 }
 
 /// Why a run was cut short.
@@ -148,9 +159,27 @@ pub async fn run(
     let pid = child.id();
 
     let mut stderr = child.stderr.take().unwrap();
+    // Only the tail is ever shown (when a run fails). Keep the buffer bounded so
+    // a chatty harness can't exhaust memory.
     let stderr_task = tokio::spawn(async move {
+        const STDERR_CAP: usize = 64 * 1024;
         let mut s = String::new();
-        let _ = stderr.read_to_string(&mut s).await;
+        let mut buf = [0u8; 8192];
+        loop {
+            match stderr.read(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    s.push_str(&String::from_utf8_lossy(&buf[..n]));
+                    if s.len() > STDERR_CAP {
+                        let mut cut = s.len() - STDERR_CAP;
+                        while !s.is_char_boundary(cut) {
+                            cut -= 1;
+                        }
+                        s.drain(..cut);
+                    }
+                }
+            }
+        }
         s
     });
 
