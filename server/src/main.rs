@@ -43,10 +43,7 @@ pub fn random_bytes(n: usize) -> Vec<u8> {
 }
 
 fn random_hex(n: usize) -> String {
-    random_bytes(n)
-        .iter()
-        .map(|x| format!("{x:02x}"))
-        .collect()
+    random_bytes(n).iter().map(|x| format!("{x:02x}")).collect()
 }
 
 pub fn short_id() -> String {
