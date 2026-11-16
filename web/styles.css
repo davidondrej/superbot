@@ -23,7 +23,7 @@ body {
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-.app { display: flex; height: 100vh; }
+.app { display: flex; height: 100vh; height: 100dvh; }
 
 /* Sidebar */
 .sidebar {
@@ -223,6 +223,31 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .typing .status { margin-left: 8px; font-size: 14.5px; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .typing .stop { margin-left: 10px; font-size: 13.5px; color: var(--text-dim); border: 1px solid #333; border-radius: 999px; padding: 1px 10px; }
 .typing .stop:hover { color: #fff; border-color: #555; }
+
+/* Phones: the sidebar becomes a slide-in drawer over the chat. */
+.menu-btn { display: none; }
+@media (max-width: 720px) {
+  .menu-btn { display: grid; position: absolute; left: 14px; top: 50%; translate: 0 -50%; z-index: 2; }
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 30;
+    width: min(320px, 86vw);
+    transform: translateX(-105%);
+    transition: transform .2s ease;
+  }
+  body.menu-open .sidebar { transform: none; box-shadow: 24px 0 48px rgba(0,0,0,.5); }
+  .scrim { display: none; }
+  body.menu-open .scrim { display: block; position: fixed; inset: 0; z-index: 25; background: rgba(0,0,0,.5); }
+  .chat-header { justify-content: flex-start; padding: 0 14px; }
+  .bot-pill { max-width: calc(100vw - 130px); }
+  .bot-pill > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .share-btn { display: none; }
+  .messages { padding: 12px 14px 130px; }
+  .composer { left: 14px; right: 14px; }
+  .model-bar { left: 24px; right: 24px; bottom: 92px; }
+  .model-bar select { max-width: 38vw; }
+  .details { width: 100vw; border-left: 0; }
+  .footnote { display: none; }
+}
 .msg-row.peer { justify-content: flex-end; }
 .msg-row.peer .bubble { background: #1b2230; border-color: #263247; }
 .bubble .from { font-size: 13px; color: var(--text-dim); margin-bottom: 2px; }
