@@ -167,12 +167,24 @@ impl App {
         self.init_bot_files(&bot);
         self.db.set_status(msg.id, "running");
         let from = || msg.from_bot.as_deref().and_then(|id| self.db.bot(id)).map(|b| format!("{} (id {})", b.name, b.id)).unwrap_or("another Bot".into());
-        let prompt = match msg.role.as_str() {
+        let mut prompt = match msg.role.as_str() {
             "routine" => format!("(Scheduled routine) {}", msg.text),
             "peer" => format!("(Message from {}, another Bot. Your reply goes back to them, not the user.)\n\n{}", from(), msg.text),
             "reply" => format!("(Reply from {} to what you asked earlier. Tell the user what matters.)\n\n{}", from(), msg.text),
             _ => msg.text.clone(),
         };
+        // After an hour idle the prompt cache has expired, so resuming would re-read the
+        // whole conversation at full price. Start a fresh session and carry the recent chat.
+        if bot.session_id.is_some() {
+            let earlier: Vec<Message> = self.db.messages(&bot.id, 40).into_iter().filter(|m| m.id < msg.id).collect();
+            if earlier.last().is_none_or(|m| crate::db::now() - m.created_at > FRESH_AFTER_MS) {
+                self.db.update_bot(&bot.id, BotPatch { session_id: Some(None), ..Default::default() });
+                bot.session_id = None;
+                if let Some(recap) = recap(&bot.name, &earlier) {
+                    prompt = format!("(New session. The last messages in this chat, for context:)\n{recap}\n\n(New message:)\n{prompt}");
+                }
+            }
+        }
 
         for attempt in 0..2 {
             let (abort_tx, abort_rx) = watch::channel(None);
@@ -442,6 +454,30 @@ Current time: {now}."#,
             now = chrono::Local::now().format("%A, %B %-d, %Y, %H:%M (UTC%:z)"),
         )
     }
+}
+
+/// Idle time after which a Bot starts a fresh harness session (the prompt cache lasts an hour).
+const FRESH_AFTER_MS: i64 = 60 * 60 * 1000;
+
+/// The last few chat messages as short plain text, for a fresh session.
+fn recap(bot_name: &str, earlier: &[Message]) -> Option<String> {
+    let start = earlier.len().saturating_sub(12);
+    let lines: Vec<String> = earlier[start..]
+        .iter()
+        .filter(|m| !m.error && !m.text.trim().is_empty())
+        .map(|m| {
+            let who = match m.role.as_str() {
+                "user" => "User",
+                "bot" => bot_name,
+                "routine" => "Scheduled routine",
+                _ => "Another Bot",
+            };
+            let text: String = m.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            let cut: String = text.chars().take(600).collect();
+            format!("- {who}: {cut}{}", if cut.len() < text.len() { "…" } else { "" })
+        })
+        .collect();
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 /// Splits off a trailing ```question {json}``` block.
